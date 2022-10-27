@@ -38,19 +38,154 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 **Посмотрим на данные и преобразуем в нужный формат:**
 
 - bodyType - Убрал информацию о дверях (тк есть отдельный признак), объединил редкие значения с похожими типами
-
 - description - вытащить число символов описания, использовать признак для nlp
-
 - engineDisplacement - перевел в числовой формат, установил mean для undefined
-
 - enginePower - убрал текстовое обозначение, приведел в числовой формат
-
-- model_info - возможно, следует объединить brand и info в один признак, чтобы info не путались для разных брендов
-
 - name - выделить отдельным признаком long, compact, competition, xDrive, AMG, Blue
-
 - vehicleConfiguration - удалить столбец, т.к. дублирует существующие признаки
-
 - Владение - переведел в числовой формат (float) в годы, установил для nan среднее занчение в зависимости от ModelDate
-
 - Руль - удалить, т.к. почти 100% слева
+
+### Feauture Enginering
+- long, compact, competition, xDrive, AMG, Blue - характеристики из name
+- description_len - количество символов в описании
+- productionDate_minus_modelDate - разница даты производства и даты выхода моделей
+- enginePower_on_engineDisplacement - мощность двигателя на объем
+- mileage_on_enginePower - пробег на мощность двигателя
+- mileage_on_engineDisplacement - пробег на объем двигателя
+- mileage_on_Владение - пробег на срок владения автомобилем
+- productionDate_max_minus_modelDate - лет с момента выпуска модели
+- productionDate_max_minus_productionDate - лет с момента производства автомобиля
+- key_words_description - ключевые слова из описания объявления, влияющие на стоимость
+- mileage_on_date - миль на возраст автомобиля
+
+###  Анализ корреляций признаков
+**Corr_v1:**
+<img width="1406" alt="corr-1" src="https://user-images.githubusercontent.com/73405095/198285885-b6949f74-6d8d-45c0-bf7f-39a8fb7e90aa.png">
+# Добавить f-score с лэйбл энкодером для категориальных признаков
+- engineDisplacement и enginePower 0.9, enginePower имеет большую корреляцию с таргет. Оставляем оба, тк высокая корреляция с таргетом.
+- mileage и modelDate/productionDate -0.7, mileage_on_enginePower/mileage_on_engineDisplacement 0.9, mileage_on_productionDate_norm100 1, productionDate_max_minus_modelDate/productionDate_max_minus_productionDate 0,7. 
+- modelDate и productionDate 1, productionDate_max_minus_modelDate/productionDate_max_minus_productionDate -1.
+
+**mileage_on_productionDate_norm100, mileage_on_enginePower, modelDate, productionDate, productionDate_max_minus_productionDate - удалены из-за высоко корреляции с признаками и меньшей корреляции с целевой переменной - в конечный код не добавлены!**
+
+### Подготовим датафрейм на вход модели
+Устраним выбросы для числовых признаков
+
+    data[num_cols] = pd.DataFrame(RobustScaler().fit_transform(data[num_cols]), columns = data[num_cols].columns)
+    
+Кодируем категориальный признаки
+
+    for col in cat_cols:
+      one_hot_data = pd.get_dummies(df[col], prefix=col)
+      df = pd.concat([df, one_hot_data], axis=1)
+      del df[col]
+      
+### Обучим модель на табличных данных
+Перемещаем и разобьем данные на тренировочную и валидационную выборки в пропорции 85/15
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=True, random_state=RANDOM_SEED)
+    
+Протестируем модели:
+<table>
+  <tbody><tr>
+    <th>Модель</th>
+    <th>Описание</th>
+    <th>best MAPE</th>
+    <th>Комментарий</th>
+  </tr>
+  <tr>
+    <td>CatBoost</td>
+    <td>Параметры по умолчанию, простетирован признак "Владение" - оставить, т.к. положительно влияет на результат</td>
+    <td>12,35%</td>
+    <td>Попробовать подобрать гиперпараметры</td>
+  </tr>
+    <tr>
+    <td>Neural Network 1 (Simple)</td>
+    <td>Базовая сеть - классический персептрон</td>
+    <td>10.55%</td>
+    <td>Лучший результат</td>
+  </tr>
+  <tr>
+    <td>Neural Network 2 (Relu to LeakyRelu)</td>
+    <td>Снизу используем слой LeakyReLU</td>
+    <td>10.62%</td>
+    <td>Резульат хуже базового</td>
+  </tr>
+  <tr>
+    <td>Neural Network 3 (Double bottle neck)</td>
+    <td>Сеть по принципу bottle neck</td>
+    <td>10.81%</td>
+    <td>Резульат хуже базового</td>
+  </tr>
+  <tr>
+    <td>CatBoost - подберем параметры</td>
+    <td>Подбор гиперпараметров с помощью gridsearch</td>
+    <td>11.17%</td>
+    <td>Достигли лучшего результата для CatBoost</td>
+  </tr>
+  <tr>
+    <td>Neural Network 1 (Simple) - optimize</td>
+    <td>Используем веса базовой сети и переобучим, снизив шаг спуска</td>
+    <td>10.44%</td>
+    <td>Достигли лучшего результата</td>
+  </tr>
+</tbody></table>
+
+### Tabular + NLP
+Создадим модель с подачей на вход табличных данных и текстовых (description)
+
+В качестве признака оставляем только описание объявления
+
+    data_nlp = data_nlp[['description', 'sample', 'price']]
+    
+Проведем очистку данных:
+- приведем все символы в нижний регистр
+- оставим только числа и русские и английские символы
+- удалим стоп-слова
+- проведем лемматизацию
+
+Подготовим данные на вход модели, протестируем методы:
+- bag of words
+- 2 gram (словосочетание из 2-х слов)
+
+### Построим и обучим Multi-Input сеть: Tabular + Text
+На вход сеть принимает отдельно табличные данные и текстовые, и соединяется в голове
+
+Составим сеть с простой архитектурой
+# model.summary() - ???
+
+Определим лучший метод токенизации, обучив сеть на разных данных
+- bag of words, mape: 10.64%
+- 2 gram, mape: 10.72%
+**bag of words имеет лучший результат**
+
+Протестируем различные архитектуры для NLP:
+<table>
+  <tbody><tr>
+    <th>Модель</th>
+    <th>Описание</th>
+    <th>best MAPE</th>
+    <th>Комментарий</th>
+  </tr>
+  <tr>
+    <td>Base</td>
+    <td>Постепенно снижение количества нейронов в слоях ближе к голове, с полносвязным слоем по середине и dropuot после слоев нейронов</td>
+    <td>10.64%</td>
+    <td>Лучший результат</td>
+  </tr>
+    <tr>
+    <td>Test model v2</td>
+    <td>С полносвязными слоями с большим числом нейронов ближе к голове</td>
+    <td>11.26%</td>
+    <td>Результат хуже базовой</td>
+  </tr>
+  <tr>
+    <td>Test model v3</td>
+    <td>Мало слоев, без LSTM</td>
+    <td>11.58%</td>
+    <td>Худший результат</td>
+  </tr>
+</tbody></table>
+
+**Базовая архитектура показывает лучший результат**
