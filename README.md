@@ -34,7 +34,7 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 - Привод - категориальный
 - Руль - категориальный
 
-### EDA
+#### EDA
 **Посмотрим на данные и преобразуем в нужный формат:**
 
 - bodyType - Убрал информацию о дверях (тк есть отдельный признак), объединил редкие значения с похожими типами
@@ -46,7 +46,7 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 - Владение - переведел в числовой формат (float) в годы, установил для nan среднее занчение в зависимости от ModelDate
 - Руль - удалить, т.к. почти 100% слева
 
-### Feauture Enginering
+#### Feauture Enginering
 - long, compact, competition, xDrive, AMG, Blue - характеристики из name
 - description_len - количество символов в описании
 - productionDate_minus_modelDate - разница даты производства и даты выхода моделей
@@ -59,17 +59,16 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 - key_words_description - ключевые слова из описания объявления, влияющие на стоимость
 - mileage_on_date - миль на возраст автомобиля
 
-###  Анализ корреляций признаков
+####  Анализ корреляций признаков
 **Corr_v1:**
 <img width="1406" alt="corr-1" src="https://user-images.githubusercontent.com/73405095/198285885-b6949f74-6d8d-45c0-bf7f-39a8fb7e90aa.png">
-# Добавить f-score с лэйбл энкодером для категориальных признаков
 - engineDisplacement и enginePower 0.9, enginePower имеет большую корреляцию с таргет. Оставляем оба, тк высокая корреляция с таргетом.
 - mileage и modelDate/productionDate -0.7, mileage_on_enginePower/mileage_on_engineDisplacement 0.9, mileage_on_productionDate_norm100 1, productionDate_max_minus_modelDate/productionDate_max_minus_productionDate 0,7. 
 - modelDate и productionDate 1, productionDate_max_minus_modelDate/productionDate_max_minus_productionDate -1.
 
 **mileage_on_productionDate_norm100, mileage_on_enginePower, modelDate, productionDate, productionDate_max_minus_productionDate - удалены из-за высоко корреляции с признаками и меньшей корреляции с целевой переменной - в конечный код не добавлены!**
 
-### Подготовим датафрейм на вход модели
+#### Подготовим датафрейм на вход модели
 Устраним выбросы для числовых признаков
 
     data[num_cols] = pd.DataFrame(RobustScaler().fit_transform(data[num_cols]), columns = data[num_cols].columns)
@@ -81,7 +80,7 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
       df = pd.concat([df, one_hot_data], axis=1)
       del df[col]
       
-### Обучим модель на табличных данных
+#### Обучим модель на табличных данных
 Перемещаем и разобьем данные на тренировочную и валидационную выборки в пропорции 85/15
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=True, random_state=RANDOM_SEED)
@@ -149,7 +148,7 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 - bag of words
 - 2 gram (словосочетание из 2-х слов)
 
-### Построим и обучим Multi-Input сеть: Tabular + Text
+#### Построим и обучим Multi-Input сеть: Tabular + Text
 На вход сеть принимает отдельно табличные данные и текстовые, и соединяется в голове
 
 Составим сеть с простой архитектурой
@@ -189,3 +188,64 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 </tbody></table>
 
 **Базовая архитектура показывает лучший результат**
+
+### Tabular + NLP + CV
+Создадим модель с подачей на вход табличных данных, текстовых и изображений
+
+Посмотрим на изображения - убедимся, что цены и фото подгрузились верно
+<img width="667" alt="img_and_price" src="https://user-images.githubusercontent.com/73405095/198529382-5a81e617-cc73-46fd-ad75-5a6170d6df6e.png">
+
+Изменим размер изображений на (320, 240) и применим аугментацию
+<img width="665" alt="image" src="https://user-images.githubusercontent.com/73405095/198529961-3242f8a1-cccf-4405-b4d6-9d8dc15bda72.png">
+
+Подготовим данные таблицы, изображений, текста на вход модели для train, test, sub
+
+#### Построим сеть MLP+NLP+CV
+Добавим к лучшей сети MLP+NLP 3-й вход EfficientNetB3 с размороженными слоями
+*EfficientNetB3 показала лучший результат среди легковесных SOTA архитектур
+
+    model = Model(inputs=[efficientnet_model.input, model_mlp.input, model_nlp.input], outputs=head)
+
+# ! Добавить summery
+
+Обучим сеть, постепенно снижая learning rate и используя EarlyStopping, сохраним веса лучшей сети
+
+    optimizer = tf.keras.optimizers.Adam(ExponentialDecay(1e-3, 100, 0.9))
+    earlystop = EarlyStopping(monitor='val_MAPE', patience=10, restore_best_weights=True,)
+
+mape: 11.06%
+
+#### Протестируем сеть MLP+CV
+    model = Model(inputs=[efficientnet_model.input, model_mlp.input], outputs=head)
+    
+mape: 11.16%
+
+### Составлю ансамбли и сделаю предсказание
+Для составления предикта присваиваю веса для результата каждой модели ансабля и суммирую их предикты * вес
+
+sub = sum(pred(i) * W(i))
+
+<table>
+  <tbody><tr>
+    <th>Ансамбль</th>
+    <th>Результат (MAPE)</th>
+  </tr>
+  <tr>
+    <td>Only MLP</td>
+    <td>11.008</td>
+  </tr>
+    <tr>
+    <td>MLP(0.5) + MLP+NLP(0.3) + MLP+CV(0.2)</td>
+    <td>10.989</td>
+  </tr>
+    <tr>
+    <td>MLP(0.4) + MLP+NLP(0.2) + MLP+CV(0.2) + MLP+NLP+CV(0.2)</td>
+    <td>11.092</td>
+  </tr>
+    <tr>
+    <td>CatB(0.5) + (MLP(0.5) + MLP+NLP(0.3) + MLP+CV(0.2)) || sum / 2</td>
+    <td>10.845</td>
+  </tr>
+</tbody></table>
+
+Ансамбль CatB(0.5) + (MLP(0.5) + MLP+NLP(0.3) + MLP+CV(0.2)) || sum / 2 - имеет лучший результат
