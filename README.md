@@ -37,6 +37,7 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 #### EDA
 **Посмотрим на данные и преобразуем в нужный формат:**
 
+    transform_tabular_base_data(data=data)
 - bodyType - Убрал информацию о дверях (тк есть отдельный признак), объединил редкие значения с похожими типами
 - description - вытащить число символов описания, использовать признак для nlp
 - engineDisplacement - перевел в числовой формат, установил mean для undefined
@@ -47,6 +48,8 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 - Руль - удалить, т.к. почти 100% слева
 
 #### Feauture Enginering
+
+    feauture_enginering_tab_data(data=data)
 - long, compact, competition, xDrive, AMG, Blue - характеристики из name
 - description_len - количество символов в описании
 - productionDate_minus_modelDate - разница даты производства и даты выхода моделей
@@ -60,8 +63,8 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 - mileage_on_date - миль на возраст автомобиля
 
 ####  Анализ корреляций признаков
-**Corr_v1:**
 <img width="1406" alt="corr-1" src="https://user-images.githubusercontent.com/73405095/198285885-b6949f74-6d8d-45c0-bf7f-39a8fb7e90aa.png">
+
 - engineDisplacement и enginePower 0.9, enginePower имеет большую корреляцию с таргет. Оставляем оба, тк высокая корреляция с таргетом.
 - mileage и modelDate/productionDate -0.7, mileage_on_enginePower/mileage_on_engineDisplacement 0.9, mileage_on_productionDate_norm100 1, productionDate_max_minus_modelDate/productionDate_max_minus_productionDate 0,7. 
 - modelDate и productionDate 1, productionDate_max_minus_modelDate/productionDate_max_minus_productionDate -1.
@@ -69,16 +72,9 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 **mileage_on_productionDate_norm100, mileage_on_enginePower, modelDate, productionDate, productionDate_max_minus_productionDate - удалены из-за высоко корреляции с признаками и меньшей корреляции с целевой переменной - в конечный код не добавлены!**
 
 #### Подготовим датафрейм на вход модели
-Устраним выбросы для числовых признаков
+Устраним выбросы для числовых признаков, кодируем категориальный признаки и составим датафрейм
 
-    data[num_cols] = pd.DataFrame(RobustScaler().fit_transform(data[num_cols]), columns = data[num_cols].columns)
-    
-Кодируем категориальный признаки
-
-    for col in cat_cols:
-      one_hot_data = pd.get_dummies(df[col], prefix=col)
-      df = pd.concat([df, one_hot_data], axis=1)
-      del df[col]
+    df = create_df(data=data)
       
 #### Обучим модель на табличных данных
 Перемещаем и разобьем данные на тренировочную и валидационную выборки в пропорции 85/15
@@ -93,12 +89,6 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
     <th>best MAPE</th>
     <th>Комментарий</th>
   </tr>
-  <tr>
-    <td>CatBoost</td>
-    <td>Параметры по умолчанию, простетирован признак "Владение" - оставить, т.к. положительно влияет на результат</td>
-    <td>12,35%</td>
-    <td>Попробовать подобрать гиперпараметры</td>
-  </tr>
     <tr>
     <td>Neural Network 1 (Simple)</td>
     <td>Базовая сеть - классический персептрон</td>
@@ -112,14 +102,14 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
     <td>Резульат хуже базового</td>
   </tr>
   <tr>
-    <td>Neural Network 3 (Double bottle neck)</td>
+    <td>Neural Network 3 (bottle neck)</td>
     <td>Сеть по принципу bottle neck</td>
     <td>10.81%</td>
     <td>Резульат хуже базового</td>
   </tr>
   <tr>
-    <td>CatBoost - подберем параметры</td>
-    <td>Подбор гиперпараметров с помощью gridsearch</td>
+    <td>CatBoost</td>
+    <td>Подбор гиперпараметров с помощью gridsearch не помог, логарифмирование y улучшило метрику</td>
     <td>11.17%</td>
     <td>Достигли лучшего результата для CatBoost</td>
   </tr>
@@ -130,6 +120,11 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
     <td>Достигли лучшего результата</td>
   </tr>
 </tbody></table>
+
+Neural Network 1 (Simple) достигла лучшего результата по метрике
+<img width="552" alt="simple_network" src="https://user-images.githubusercontent.com/73405095/198872126-83580296-c2a5-4791-b14b-3b363c92155a.png">
+
+**Сохраним обученную сеть Neural Network 1 (Simple) и CatBoost**
 
 ### Tabular + NLP
 Создадим модель с подачей на вход табличных данных и текстовых (description)
