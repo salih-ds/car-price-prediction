@@ -8,6 +8,9 @@ Python 3.7.6
 
 Зависимости: requirements.txt
 
+## Сборка
+    git clone https://github.com/salih-ds/car-price-prediction.git
+
 ## Данные
 https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 
