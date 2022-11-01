@@ -3,6 +3,10 @@
 
 Соревнование kaggle (Rus_Salih_b) Top-12%: https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2
 
+## Требования
+Python 3.7.6
+Зависимости: requirements.txt
+
 ## Данные
 https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 
