@@ -5,6 +5,7 @@
 
 ## Требования
 Python 3.7.6
+
 Зависимости: requirements.txt
 
 ## Данные
@@ -42,13 +43,13 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 **Посмотрим на данные и преобразуем в нужный формат:**
 
     transform_tabular_base_data(data=data)
-- bodyType - Убрал информацию о дверях (тк есть отдельный признак), объединил редкие значения с похожими типами
+- bodyType - Убрал информацию о дверях (т.к. есть отдельный признак), объединил редкие значения с похожими типами
 - description - вытащить число символов описания, использовать признак для nlp
 - engineDisplacement - перевел в числовой формат, установил mean для undefined
-- enginePower - убрал текстовое обозначение, приведел в числовой формат
+- enginePower - убрал текстовое обозначение, привел в числовой формат
 - name - выделить отдельным признаком long, compact, competition, xDrive, AMG, Blue
 - vehicleConfiguration - удалить столбец, т.к. дублирует существующие признаки
-- Владение - переведел в числовой формат (float) в годы, установил для nan среднее занчение в зависимости от ModelDate
+- Владение - перевел в числовой формат (float) в годы, установил для nan среднее значение в зависимости от ModelDate
 - Руль - удалить, т.к. почти 100% слева
 
 #### Feauture Enginering
@@ -69,7 +70,7 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
 ####  Анализ корреляций признаков
 <img width="1406" alt="corr-1" src="https://user-images.githubusercontent.com/73405095/198285885-b6949f74-6d8d-45c0-bf7f-39a8fb7e90aa.png">
 
-- engineDisplacement и enginePower 0.9, enginePower имеет большую корреляцию с таргет. Оставляем оба, тк высокая корреляция с таргетом.
+- engineDisplacement и enginePower 0.9, enginePower имеет большую корреляцию с таргетом. Оставляем оба, т.к. высокая корреляция с таргетом.
 - mileage и modelDate/productionDate -0.7, mileage_on_enginePower/mileage_on_engineDisplacement 0.9, mileage_on_productionDate_norm100 1, productionDate_max_minus_modelDate/productionDate_max_minus_productionDate 0,7. 
 - modelDate и productionDate 1, productionDate_max_minus_modelDate/productionDate_max_minus_productionDate -1.
 
@@ -103,13 +104,13 @@ https://www.kaggle.com/competitions/sf-dst-car-price-prediction-part2/data
     <td>Neural Network 2 (Relu to LeakyRelu)</td>
     <td>Снизу используем слой LeakyReLU</td>
     <td>10.62%</td>
-    <td>Резульат хуже базового</td>
+    <td>Результат хуже базового</td>
   </tr>
   <tr>
     <td>Neural Network 3 (bottle neck)</td>
     <td>Сеть по принципу bottle neck</td>
     <td>10.81%</td>
-    <td>Резульат хуже базового</td>
+    <td>Результат хуже базового</td>
   </tr>
   <tr>
     <td>CatBoost</td>
@@ -219,7 +220,7 @@ mape: 11.06%
 mape: 11.16%
 
 ### Составлю ансамбли и сделаю предсказание
-Для составления предикта присваиваю веса для результата каждой модели ансабля и суммирую их предикты * вес
+Для составления предикта присваиваю веса для результата каждой модели ансамбля и суммирую их предикты * вес
 
 sub = sum(pred(i) * W(i))
 
